@@ -174,18 +174,13 @@ def tensor_map(
             return
         
         
-        # Loop through each ordinal of the output
         for ordinal in prange(len(out)):
             input_index: Index = np.empty(len(in_shape), dtype=np.int32)
             output_index: Index = np.empty(len(out_shape), dtype=np.int32)
-            # Given the ordinal, find its corresponding output index
             to_index(ordinal, out_shape, output_index)
-            # Find the corresponding input index using broadcasting
             broadcast_index(output_index, out_shape, in_shape, input_index)
-            # Find corresponding positions to the indices
             output_pos = index_to_position(output_index, out_strides)
             input_pos = index_to_position(input_index, in_strides)
-            # Calculate the value of the output with a function applied to the correct input
             out[output_pos] = fn(in_storage[input_pos])
 
     return njit(_map, parallel=True)  # type: ignore
