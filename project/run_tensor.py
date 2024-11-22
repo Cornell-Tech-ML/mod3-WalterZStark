@@ -14,44 +14,36 @@ def RParam(*shape):
 # TODO: Implement for Task 2.5.
 
 class Network(minitorch.Module):
-    def __init__ (self, hidden_layers):
+    def __init__(self, hidden_layers):
         super().__init__()
-        input_size = 2
-        output_size = 1
-        self.layer1 = Linear(input_size, hidden_layers)
-        self.layer2 = Linear(hidden_layers, hidden_layers)
-        self.layer3 = Linear(hidden_layers, output_size)
 
-    def forward(self, x: minitorch.Tensor) -> minitorch.Tensor:
-        front = self.layer1.forward(x).relu()
-        middle = self.layer2.forward(front).relu()
-        output = self.layer3.forward(middle).sigmoid()
-        return output
+        # Submodules
+        self.layer1 = Linear(2, hidden_layers)
+        self.layer2 = Linear(hidden_layers, hidden_layers)
+        self.layer3 = Linear(hidden_layers, 1)
+
+    def forward(self, x):
+        # ASSIGN2.5
+        h = self.layer1.forward(x).relu()
+        h = self.layer2.forward(h).relu()
+        return self.layer3.forward(h).sigmoid()
+        # END ASSIGN2.5
+
 
 class Linear(minitorch.Module):
-    def __init__ (self, input_size, outout_size):
+    def __init__(self, in_size, out_size):
         super().__init__()
-        self.input_size = input_size
-        self.output_size = outout_size
-        self.weights = self.add_parameter("weights", RParam(input_size, outout_size).value)
-        self.bias = self.add_parameter("bias", RParam(outout_size).value)
-        self.weights.value.requires_grad_(True)
-        self.bias.value.requires_grad_(True)
+        self.weights = RParam(in_size, out_size)
+        self.bias = RParam(out_size)
+        self.out_size = out_size
 
-    def forward(self, x: minitorch.Tensor) -> minitorch.Tensor:
-        num_batches = x.shape[0]
-        weights = self.weights.value
-        bias = self.bias.value
-        # Transpose weights to match output_size, input_size.
-        transposed_weights = weights.permute(1,0)
-        # Add extra dimension to input to enable multiplication.
-        input = x.view(num_batches, 1, self.input_size)
-        # Calculate output
-        output = input * transposed_weights
-        # Sum over extra dimension of inputs.
-        output = output.sum(2)
-        # Make sure output is correct dimensions to match num_batches and self.out_size.
-        return output.view(num_batches, self.output_size) + bias
+    def forward(self, x):
+        # ASSIGN2.5
+        batch, in_size = x.shape
+        return (
+            self.weights.value.view(1, in_size, self.out_size)
+            * x.view(batch, in_size, 1)
+        ).sum(1).view(batch, self.out_size) + self.bias.value.view(self.out_size)
 
 def default_log_fn(epoch, total_loss, correct, losses):
     print("Epoch ", epoch, " loss ", total_loss, "correct", correct)
