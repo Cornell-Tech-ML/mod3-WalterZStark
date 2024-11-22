@@ -369,19 +369,10 @@ def test_bmm(backend: str, data: DataObject) -> None:
     
     a = data.draw(tensors(backend=shared[backend], shape=(D, A, B)))
     b = data.draw(tensors(backend=shared[backend], shape=(1, B, C)))
-    print("martix A")
-    print(a)
-    print("martix B")
-    print(b)
-
     c = a @ b
-    print("martix C")
-    print(c)
     c2 = (
         (a.contiguous().view(D, A, B, 1) * b.contiguous().view(1, 1, B, C))
         .sum(2)
         .view(D, A, C)
     )
-    print("martix C2")
-    print(c2)
     assert_close_tensor(c, c2)
