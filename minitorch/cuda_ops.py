@@ -342,7 +342,9 @@ def tensor_reduce(
         
         for s in range(pos, reduce_size, BLOCK_DIM):
             out_index[reduce_dim] = s
-            a_pos = index_to_position(out_index, a_strides)
+            a_pos = 0
+            for dim in range(len(a_shape)):
+                    a_pos += out_index[dim] * a_strides[dim]
             cache[pos] = fn(cache[pos], a_storage[a_pos])
         
         cuda.syncthreads()
@@ -391,22 +393,29 @@ def _mm_practice(out: Storage, a: Storage, b: Storage, size: int) -> None:
 
     """
     BLOCK_DIM = 32
+    # Initialize storage to be a square of size BLOCK_DIM
     shared_stor_a = cuda.shared.array((BLOCK_DIM, BLOCK_DIM), numba.float64)
     shared_stor_b = cuda.shared.array((BLOCK_DIM, BLOCK_DIM), numba.float64)
     
+    # Final positions
     i = cuda.threadIdx.x
     j = cuda.threadIdx.y
     
+    # Check to make sure the current threads don't exceed the  of the square
+    # This prevents an indexing error
     if i < size and j < size:
         shared_stor_a[i, j] = a[i * size + j]
         shared_stor_b[i, j] = b[i * size + j]
-    
+    # Allow all the threads to catch up
     cuda.syncthreads()
-    
+    # Check to make sure the current threads don't exceed the  of the square
     if i < size and j < size:
         dot = 0.0
+        # Loop over the inner dimension of both squares
         for k in range(size):
+            # Compute the parial dot product
             dot += shared_stor_a[i, k] * shared_stor_b[k, j]
+        # Output the dot product to global out variable
         out[i * size + j] = dot
 
 
@@ -453,6 +462,7 @@ def _tensor_matrix_multiply(
     Returns:
         None : Fills in `out`
     """
+    # Set the batch stride in case batches are used
     a_batch_stride = a_strides[0] if a_shape[0] > 1 else 0
     b_batch_stride = b_strides[0] if b_shape[0] > 1 else 0
     # Batch dimension - fixed
@@ -475,29 +485,41 @@ def _tensor_matrix_multiply(
     for block_start in range(0, a_shape[2] + BLOCK_DIM - 1, BLOCK_DIM):
 
         # Move the information in a and b storage to a_shared to b_shared (shared memory)
+        # Check if the current output index (i) and local index (pj) exceeds the input a shape
+        # We don't want to access the same index twice
         if i < a_shape[1] and (block_start + pj) < a_shape[2]:
+            # Find the index for the current a_idx based on the current batch, i and pj
             a_idx = (batch * a_batch_stride +  i * a_strides[1] + (block_start + pj) * a_strides[2])
+            # Store the current a array value in the shared storage in its local positions
             a_shared[pi, pj] = a_storage[a_idx]
         else:
+            # Set the shared storage position to 0 if the local positions exceed the size of the input array a
             a_shared[pi, pj] = 0.0
-
+        # Check if the current output index (j) and local index (pi) exceeds the input b shape
         if (block_start + pi) < b_shape[1] and j < b_shape[2]:
+            # Find the index for the current b_idx based on the current batch, j and pi
             b_idx = (batch * b_batch_stride + (block_start + pi) * b_strides[1] +  j * b_strides[2])
+            # Store the current b array value in the shared storage in its local positions
             b_shared[pi, pj] = b_storage[b_idx]
         else:
+            # Set the shared storage position to 0 if the local positions exceed the size of the input array b
             b_shared[pi, pj] = 0.0
 
+        # All all threads to catch up before calculating the dot product
         cuda.syncthreads()
 
         # Compute dot product for position c[i, j]
         for k in range(min(BLOCK_DIM, a_shape[2] - block_start)):
             dot += a_shared[pi, k] * b_shared[k, pj]
+        # All all threads to catch up before setting the global variable
         cuda.syncthreads()
 
-
+    # Check if the current output indicies are larger than the output shape
     if i < out_shape[1] and j < out_shape[2]:
+        # Calculate the output storage index based on the out_strides
         out_idx = (batch * out_strides[0] + i * out_strides[1] + j * out_strides[2])
-    out[out_idx] = dot
+        # Set the global output variable to the dot product
+        out[out_idx] = dot
 
 
 tensor_matrix_multiply = jit(_tensor_matrix_multiply)
