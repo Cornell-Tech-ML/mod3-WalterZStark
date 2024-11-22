@@ -294,8 +294,10 @@ def tensor_reduce(
         
             for s in range(1, reduce_size):
                 out_index[reduce_dim] = s
-                # TODO: Remove index_to_position
-                current = fn(current, a_storage[index_to_position(out_index, a_strides)])
+                storage_pose = 0
+                for dim in range(len(a_shape)):
+                    storage_pose += out_index[dim] * a_strides[dim]
+                current = fn(current, a_storage[storage_pose])
             
             out[o] = current
         
@@ -349,9 +351,6 @@ def _tensor_matrix_multiply(
     a_batch_stride = a_strides[0] if a_shape[0] > 1 else 0
     b_batch_stride = b_strides[0] if b_shape[0] > 1 else 0
 
-    # Get dimensions
-    batch_size, out_rows, out_cols = out_shape 
-    _, _, a_cols = a_shape
 
     # Loop over the batches in the output
     for batch in prange(out_shape[0]):
