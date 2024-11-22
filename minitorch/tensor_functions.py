@@ -140,6 +140,7 @@ class Sigmoid(Function):
         sigma: Tensor = ctx.saved_values[0]
         return sigma * (-sigma + 1.0) * grad_output
 
+
 class ReLU(Function):
     @staticmethod
     def forward(ctx: Context, t1: Tensor) -> Tensor:
@@ -186,7 +187,6 @@ class Sum(Function):
     @staticmethod
     def forward(ctx: Context, t1: Tensor, dim: Tensor) -> Tensor:
         """Forward function for Sum method."""
-        
         ctx.save_for_backward(t1.shape, dim)
         return t1.f.add_reduce(t1, int(dim.item()))
 
@@ -239,7 +239,6 @@ class Permute(Function):
         ctx.save_for_backward(order)
         return a._new(a._tensor.permute(*[int(order[i]) for i in range(order.size)]))
 
-
     @staticmethod
     def backward(ctx: Context, grad_output: Tensor) -> Tuple[Tensor, float]:
         """Backward function for Permute method."""
@@ -251,8 +250,6 @@ class Permute(Function):
             )
         ]
         return grad_output._new(grad_output._tensor.permute(*order2)), 0.0
-
-
 
 
 class View(Function):

@@ -276,7 +276,7 @@ class TensorData:
             tuple([self.shape[o] for o in order]),
             tuple([self._strides[o] for o in order]),
         )
-    
+
     def to_string(self) -> str:
         """Convert to string"""
         s = ""

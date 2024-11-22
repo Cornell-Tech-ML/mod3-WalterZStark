@@ -7,7 +7,6 @@ from numba import prange
 from numba import njit as _njit
 
 from .tensor_data import (
-    MAX_DIMS,
     broadcast_index,
     index_to_position,
     shape_broadcast,
@@ -30,6 +29,18 @@ Fn = TypeVar("Fn")
 
 
 def njit(fn: Fn, **kwargs: Any) -> Fn:
+    """No-Python JIT compiler wrapper.
+
+    Args:
+    ----
+        fn (Fn): Function to compile
+        **kwargs (Any): Additional compiler arguments
+
+    Returns:
+    -------
+        Fn: Compiled function
+
+    """
     return _njit(inline="always", **kwargs)(fn)  # type: ignore
 
 
@@ -76,7 +87,7 @@ class FastOps(TensorOps):
         def ret(a: Tensor, dim: int) -> Tensor:
             out_shape = list(a.shape)
             out_shape[dim] = 1
-            
+
             # Other values when not sum.
             out = a.zeros(tuple(out_shape))
             out._tensor._storage[:] = start
@@ -168,12 +179,13 @@ def tensor_map(
         in_shape: Shape,
         in_strides: Strides,
     ) -> None:
-        if np.array_equal(out_strides, in_strides) and np.array_equal(out_shape, in_shape):
+        if np.array_equal(out_strides, in_strides) and np.array_equal(
+            out_shape, in_shape
+        ):
             for i in prange(len(out)):
                 out[i] = fn(in_storage[i])
             return
-        
-        
+
         for ordinal in prange(len(out)):
             input_index: Index = np.empty(len(in_shape), dtype=np.int32)
             output_index: Index = np.empty(len(out_shape), dtype=np.int32)
@@ -220,8 +232,6 @@ def tensor_zip(
         b_shape: Shape,
         b_strides: Strides,
     ) -> None:
-        
-        
         if (
             np.array_equal(out_strides, a_strides)
             and np.array_equal(out_strides, b_strides)
@@ -231,8 +241,7 @@ def tensor_zip(
             for i in prange(len(out)):
                 out[i] = fn(a_storage[i], b_storage[i])
             return
-        
-        
+
         # Loop through each ordinal of the output
         for ordinal in prange(len(out)):
             a_input_index: Index = np.empty(len(a_shape), dtype=np.int32)
@@ -283,7 +292,6 @@ def tensor_reduce(
         a_strides: Strides,
         reduce_dim: int,
     ) -> None:
-                
         for i in prange(len(out)):
             reduce_size = a_shape[reduce_dim]
             out_index: Index = np.empty(len(out_shape), dtype=np.int32)
@@ -291,17 +299,16 @@ def tensor_reduce(
             o = index_to_position(out_index, out_strides)
             out_index[reduce_dim] = 0
             current = fn(out[o], a_storage[index_to_position(out_index, a_strides)])
-        
+
             for s in range(1, reduce_size):
                 out_index[reduce_dim] = s
                 storage_pose = 0
                 for dim in range(len(a_shape)):
                     storage_pose += out_index[dim] * a_strides[dim]
                 current = fn(current, a_storage[storage_pose])
-            
+
             out[o] = current
-        
-        
+
     return njit(_reduce, parallel=True)  # type: ignore
 
 
@@ -351,7 +358,6 @@ def _tensor_matrix_multiply(
     a_batch_stride = a_strides[0] if a_shape[0] > 1 else 0
     b_batch_stride = b_strides[0] if b_shape[0] > 1 else 0
 
-
     # Loop over the batches in the output
     for batch in prange(out_shape[0]):
         a_offset = batch * a_batch_stride
@@ -361,15 +367,15 @@ def _tensor_matrix_multiply(
             for j in range(out_shape[2]):
                 # Initialize output value and index
                 dot = 0.0
-                out_idx = batch * out_strides[0] + i * out_strides[1] + j * out_strides[2]
+                out_idx = (
+                    batch * out_strides[0] + i * out_strides[1] + j * out_strides[2]
+                )
                 # Find the dot product
                 for k in range(a_shape[2]):
                     a_idx = a_offset + i * a_strides[1] + k * a_strides[2]
                     b_idx = b_offset + k * b_strides[1] + j * b_strides[2]
                     dot += a_storage[a_idx] * b_storage[b_idx]
                 out[out_idx] = dot
-
-
 
 
 tensor_matrix_multiply = njit(_tensor_matrix_multiply, parallel=True)

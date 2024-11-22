@@ -31,7 +31,7 @@ from .tensor_functions import (
     Sigmoid,
     Sum,
     View,
-    tensor
+    tensor,
 )
 
 if TYPE_CHECKING:
@@ -391,7 +391,6 @@ class Tensor:
 
     def view(self, *shape: int) -> Tensor:
         """Reshapes the tensor to a new input shape without changing the stored data."""
-        
         return View.apply(self, tensor(list(shape)))
 
     def zero_grad_(self) -> None:
